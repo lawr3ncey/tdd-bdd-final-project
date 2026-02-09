@@ -34,6 +34,6 @@ class ProductFactory(factory.Factory):
    ## Add code to create Fake Products 
     name = factory.Faker("word")
     description = factory.Faker("text")
-    price = FuzzyChoice([9.99, 19.99, 29.99, 49.99, 99.99])
+    price = FuzzyDecimal(0.5, 2000.0, 2)
     available = FuzzyChoice([True, False])
     category = FuzzyChoice([Category.CLOTHS, Category.FOOD, Category.HOUSEWARES, Category.AUTOMOTIVE, Category.TOOLS])
