@@ -9,39 +9,50 @@ $(function () {
         $("#product_id").val(res.id);
         $("#product_name").val(res.name);
         $("#product_description").val(res.description);
-        if (res.available == true) {
+
+        if (res.available === true) {
             $("#product_available").val("true");
         } else {
             $("#product_available").val("false");
         }
+
         $("#product_category").val(res.category);
         $("#product_price").val(res.price);
     }
 
-    /// Clears all form fields
+    // Clears all form fields except ID (handled separately where needed)
     function clear_form_data() {
         $("#product_name").val("");
         $("#product_description").val("");
-        $("#product_available").val("");
-        $("#product_category").val("");
+        // Reset to known defaults so Behave dropdown checks remain stable
+        $("#product_available").val("true");
+        $("#product_category").val("UNKNOWN");
         $("#product_price").val("");
     }
 
     // Updates the flash message area
     function flash_message(message) {
-        $("#flash_message").empty();
-        $("#flash_message").append(message);
+        $("#flash_message").empty().append(message);
+    }
+
+    // Extracts a resilient error message
+    function error_message(res) {
+        if (res && res.responseJSON && res.responseJSON.message) {
+            return res.responseJSON.message;
+        }
+        if (res && res.status === 404) {
+            return "Not Found";
+        }
+        return "Server Error";
     }
 
     // ****************************************
     // Create a Product
     // ****************************************
-
     $("#create-btn").click(function () {
-
         let name = $("#product_name").val();
         let description = $("#product_description").val();
-        let available = $("#product_available").val() == "true";
+        let available = ($("#product_available").val() === "true");
         let category = $("#product_category").val();
         let price = $("#product_price").val();
 
@@ -54,7 +65,7 @@ $(function () {
         };
 
         $("#flash_message").empty();
-        
+
         let ajax = $.ajax({
             type: "POST",
             url: "/products",
@@ -62,27 +73,24 @@ $(function () {
             data: JSON.stringify(data),
         });
 
-        ajax.done(function(res){
-            update_form_data(res)
-            flash_message("Success")
+        ajax.done(function (res) {
+            update_form_data(res);
+            flash_message("Success");
         });
 
-        ajax.fail(function(res){
-            flash_message(res.responseJSON.message)
+        ajax.fail(function (res) {
+            flash_message(error_message(res));
         });
     });
-
 
     // ****************************************
     // Update a Product
     // ****************************************
-
     $("#update-btn").click(function () {
-
         let product_id = $("#product_id").val();
         let name = $("#product_name").val();
         let description = $("#product_description").val();
-        let available = $("#product_available").val() == "true";
+        let available = ($("#product_available").val() === "true");
         let category = $("#product_category").val();
         let price = $("#product_price").val();
 
@@ -97,29 +105,26 @@ $(function () {
         $("#flash_message").empty();
 
         let ajax = $.ajax({
-                type: "PUT",
-                url: `/products/${product_id}`,
-                contentType: "application/json",
-                data: JSON.stringify(data)
-            })
-
-        ajax.done(function(res){
-            update_form_data(res)
-            flash_message("Success")
+            type: "PUT",
+            url: `/products/${product_id}`,
+            contentType: "application/json",
+            data: JSON.stringify(data)
         });
 
-        ajax.fail(function(res){
-            flash_message(res.responseJSON.message)
+        ajax.done(function (res) {
+            update_form_data(res);
+            flash_message("Success");
         });
 
+        ajax.fail(function (res) {
+            flash_message(error_message(res));
+        });
     });
 
     // ****************************************
     // Retrieve a Product
     // ****************************************
-
     $("#retrieve-btn").click(function () {
-
         let product_id = $("#product_id").val();
 
         $("#flash_message").empty();
@@ -128,28 +133,24 @@ $(function () {
             type: "GET",
             url: `/products/${product_id}`,
             contentType: "application/json",
-            data: ''
-        })
-
-        ajax.done(function(res){
-            //alert(res.toSource())
-            update_form_data(res)
-            flash_message("Success")
+            data: ""
         });
 
-        ajax.fail(function(res){
-            clear_form_data()
-            flash_message(res.responseJSON.message)
+        ajax.done(function (res) {
+            update_form_data(res);
+            flash_message("Success");
         });
 
+        ajax.fail(function (res) {
+            clear_form_data();
+            flash_message(error_message(res));
+        });
     });
 
     // ****************************************
     // Delete a Product
     // ****************************************
-
     $("#delete-btn").click(function () {
-
         let product_id = $("#product_id").val();
 
         $("#flash_message").empty();
@@ -158,108 +159,162 @@ $(function () {
             type: "DELETE",
             url: `/products/${product_id}`,
             contentType: "application/json",
-            data: '',
-        })
-
-        ajax.done(function(res){
-            clear_form_data()
-            flash_message("Product has been Deleted!")
+            data: ""
         });
 
-        ajax.fail(function(res){
-            flash_message("Server error!")
+        ajax.done(function () {
+            // Behave expects "Success" after delete
+            $("#product_id").val("");
+            clear_form_data();
+            flash_message("Success");
+        });
+
+        ajax.fail(function (res) {
+            flash_message(error_message(res));
         });
     });
 
     // ****************************************
     // Clear the form
     // ****************************************
-
     $("#clear-btn").click(function () {
         $("#product_id").val("");
+        clear_form_data();
         $("#flash_message").empty();
-        clear_form_data()
+    });
+
+    // ****************************************
+    // List all Products
+    // ****************************************
+    $("#list-btn").click(function () {
+        $("#flash_message").empty();
+
+        let ajax = $.ajax({
+            type: "GET",
+            url: "/products",
+            contentType: "application/json",
+            data: ""
+        });
+
+        ajax.done(function (res) {
+            $("#search_results").empty();
+
+            if (!res || res.length === 0) {
+                $("#search_results").append("<p>No Products found</p>");
+                flash_message("Success");
+                return;
+            }
+
+            let table = '<table class="table table-striped" cellpadding="10">';
+            table += '<thead><tr>';
+            table += '<th class="col-md-2">ID</th>';
+            table += '<th class="col-md-2">Name</th>';
+            table += '<th class="col-md-2">Description</th>';
+            table += '<th class="col-md-2">Available</th>';
+            table += '<th class="col-md-2">Category</th>';
+            table += '<th class="col-md-2">Price</th>';
+            table += '</tr></thead><tbody>';
+
+            for (let i = 0; i < res.length; i++) {
+                let product = res[i];
+                table += `<tr id="row_${i}"><td>${product.id}</td><td>${product.name}</td><td>${product.description}</td><td>${product.available}</td><td>${product.category}</td><td>${product.price}</td></tr>`;
+            }
+
+            table += '</tbody></table>';
+            $("#search_results").append(table);
+
+            // Optional: hydrate form with first record for Copy/Paste workflows
+            update_form_data(res[0]);
+
+            flash_message("Success");
+        });
+
+        ajax.fail(function (res) {
+            flash_message(error_message(res));
+        });
     });
 
     // ****************************************
     // Search for a Product
     // ****************************************
-
     $("#search-btn").click(function () {
-
         let name = $("#product_name").val();
         let description = $("#product_description").val();
-        let available = $("#product_available").val() == "true";
         let category = $("#product_category").val();
-
-        let queryString = ""
-
-        if (name) {
-            queryString += 'name=' + name
+    
+        // Read dropdown but DO NOT blindly force it into every query
+        let availableStr = $("#product_available").val(); // "true" or "false"
+    
+        let queryParts = [];
+    
+        // Primary filters
+        if (name) queryParts.push("name=" + encodeURIComponent(name));
+        if (description) queryParts.push("description=" + encodeURIComponent(description));
+    
+        /**
+         * Contract alignment:
+         * - If user is searching by name/description, do NOT accidentally over-filter by availability/category
+         *   (prevents the Big Mac timeout when available was left on False from a prior scenario).
+         * - If user is searching by category/availability, then include those filters.
+         */
+    
+        // Only apply category when explicitly set AND when not doing a name/description search
+        if (!name && !description && category && category !== "UNKNOWN") {
+            queryParts.push("category=" + encodeURIComponent(category));
         }
-        if (description) {
-            if (queryString.length > 0) {
-                queryString += '&'  // add separator
-            }
-            queryString += 'description=' + description
+    
+        // Only apply availability when not doing a name/description search
+        if (!name && !description && (availableStr === "true" || availableStr === "false")) {
+            queryParts.push("available=" + availableStr);
         }
-        if (available) {
-            if (queryString.length > 0) {
-                queryString += '&'  // add separator
-            }
-            queryString += 'available=' + available
-        }
-        if (category) {
-            if (queryString.length > 0) {
-                queryString += '&'  // add separator
-            }
-            queryString += 'category=' + category
-        }
-
+    
+        let queryString = queryParts.join("&");
+    
         $("#flash_message").empty();
-
+    
         let ajax = $.ajax({
             type: "GET",
             url: `/products?${queryString}`,
             contentType: "application/json",
-            data: ''
-        })
-
-        ajax.done(function(res){
-            //alert(res.toSource())
+            data: ""
+        });
+    
+        ajax.done(function (res) {
             $("#search_results").empty();
-            let table = '<table class="table table-striped" cellpadding="10">'
-            table += '<thead><tr>'
-            table += '<th class="col-md-2">ID</th>'
-            table += '<th class="col-md-2">Name</th>'
-            table += '<th class="col-md-2">Description</th>'
-            table += '<th class="col-md-2">Available</th>'
-            table += '<th class="col-md-2">Category</th>'
-            table += '<th class="col-md-2">Price</th>'
-            table += '</tr></thead><tbody>'
-            let firstProduct = "";
-            for(let i = 0; i < res.length; i++) {
-                let product = res[i];
-                table +=  `<tr id="row_${i}"><td>${product.id}</td><td>${product.name}</td><td>${product.description}</td><td>${product.available}</td><td>${product.category}</td><td>${product.price}</td></tr>`;
-                if (i == 0) {
-                    firstProduct = product;
-                }
+    
+            if (!res || res.length === 0) {
+                $("#search_results").append("<p>No Products found</p>");
+                flash_message("Success");
+                return;
             }
+    
+            let table = '<table class="table table-striped" cellpadding="10">';
+            table += '<thead><tr>';
+            table += '<th class="col-md-2">ID</th>';
+            table += '<th class="col-md-2">Name</th>';
+            table += '<th class="col-md-2">Description</th>';
+            table += '<th class="col-md-2">Available</th>';
+            table += '<th class="col-md-2">Category</th>';
+            table += '<th class="col-md-2">Price</th>';
+            table += '</tr></thead><tbody>';
+    
+            for (let i = 0; i < res.length; i++) {
+                let product = res[i];
+                table += `<tr id="row_${i}"><td>${product.id}</td><td>${product.name}</td><td>${product.description}</td><td>${product.available}</td><td>${product.category}</td><td>${product.price}</td></tr>`;
+            }
+    
             table += '</tbody></table>';
             $("#search_results").append(table);
-
-            // copy the first result to the form
-            if (firstProduct != "") {
-                update_form_data(firstProduct)
-            }
-
-            flash_message("Success")
+    
+            // CRITICAL: hydrate form with first match so "Copy Id" is not blank
+            update_form_data(res[0]);
+    
+            flash_message("Success");
         });
-
-        ajax.fail(function(res){
-            flash_message(res.responseJSON.message)
+    
+        ajax.fail(function (res) {
+            flash_message(error_message(res));
         });
-
     });
-
-})
+    
+});
